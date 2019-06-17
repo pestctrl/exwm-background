@@ -2,10 +2,11 @@
 
 * Introduction
 
-This package allows you to put X windows behind a transparent EXWM workspace, a nice alternative to alt-tabbing between two windows, or splitting valuable screen space between two windows.
+This package allows you to put X windows, or other EXWM workspaces, behind a transparent EXWM workspace, a nice alternative to alt-tabbing between two windows, or splitting valuable screen space between two windows.
 
-[[file:screenshot/firefox.png]]
-[[file:screenshot/evince.png]]
+[[file:screenshots/firefox.png]]
+[[file:screenshots/evince.png]]
+[[file:screenshots/emacs.png]]
 
 * Setup 
 

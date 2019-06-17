@@ -1,0 +1,21 @@
+#+TITLE: Put X windows in the background
+
+* Introduction
+
+This package allows you to put X windows behind a transparent EXWM workspace, a nice alternative to alt-tabbing between two windows, or splitting valuable screen space between two windows.
+
+[[file:screenshot/firefox.png]]
+[[file:screenshot/evince.png]]
+
+* Setup 
+
+The easiest way to install this package is through MELPA. Jokes on you though, this package isn't in MELPA yet, so here's how you do it. 
+
+1. Make sure you install exwm through other means. 
+2. Clone this repository to /whatever/path/you/want
+3. ~(add-to-list 'load-path "/whatever/path/you/want")~
+4. ~(require 'exwm-background)~
+
+* Contribution
+
+Feel free to report an issue or send in a pull request. 

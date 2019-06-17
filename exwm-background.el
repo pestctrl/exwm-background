@@ -52,8 +52,6 @@
     (set-frame-parameter (selected-frame) 'alpha `(,exwm-background/current-transparency . 50))
     (message (format "%d" exwm-background/current-transparency))))
 
-(define-key desktop-environment-mode-map (kbd "<S-XF86MonBrightnessDown>") #'exwm-background/decrease-transparency)
-(define-key desktop-environment-mode-map (kbd "<S-XF86MonBrightnessUp>") #'exwm-background/increase-transparency)
 
 (defvar exwm-background/viewing-background nil)
 
@@ -65,7 +63,6 @@ X window in the background."
   (setq exwm-background/viewing-background (not exwm-background/viewing-background))
   (set-frame-parameter (selected-frame) 'alpha `(,(if exwm-background/viewing-background 0 exwm-background/current-transparency) . 50)))
 
-(global-set-key (kbd "s-v") #'exwm-background/toggle-viewing-background)
 
 ;; Send a window to the back, for viewing while transparent
 ;; Reference material: 
@@ -176,7 +173,6 @@ the other workspace. "
               (t (message "No longer background frame!")
                  nil))))
 
-(global-set-key (kbd "s-b") #'exwm-background/exwm-workspace-background)
 
 (advice-add #'exwm-workspace--set-active :around #'exwm-background/exwm-workspace--set-active)
 ;; send keyevent to specific window
@@ -228,7 +224,5 @@ Needs to be fixed"
       (while (not (= 113 (setq event (read-key "Sequence? "))))
         (exwm-background/exwm-input--fake-key-to-window exwm-background/exwm-background-window event)))))
 
-(define-key *root-map* (kbd "k") #'exwm-background/exwm-send-key-to-background)
-(define-key *root-map* (kbd "C-k") #'exwm-background/exwm-send-key-to-background-loop)
 
 (provide 'exwm-background)

@@ -25,9 +25,17 @@
 
 ;; I saw an internet post online about someone wanting to watch youtube
 ;; videos or read articles behind EXWM via transparency, and I wanted
-;; that as well. Thus, I wrote this package. 
+;; that as well. Thus, I wrote this package.
+
+;; I do this by advising certain functions in exwm in order to let EXWM
+;; essentially "forget" about these windows, in that EXWM will not
+;; attempt to hide these windows or bring them to the foreground.
+
 
 ;;; Code:
+
+(require 'xelb)
+(require 'exwm)
 
 ;; transparency toggle
 (defvar exwm-background/current-transparency 85)
@@ -55,13 +63,20 @@
 
 (defvar exwm-background/viewing-background nil)
 
-(defun exwm-background/toggle-viewing-background ()
+(defun my/toggle-viewing-background ()
   "Allow for easy switching between 0 transparency and 
-current transparency, in order to take peeks at the 
-X window in the background."
+     current transparency, in order to take peeks at the 
+     X window in the background."
   (interactive)
-  (setq exwm-background/viewing-background (not exwm-background/viewing-background))
-  (set-frame-parameter (selected-frame) 'alpha `(,(if exwm-background/viewing-background 0 exwm-background/current-transparency) . 50)))
+  (cond (exwm-background/viewing-background
+         (if (consp exwm-background/viewing-background)
+             (my/set-window-transparency )
+           (set-frame-parameter (selected-frame) 'alpha `(,my/current-transparency . 50))))
+        (exwm--id
+         )
+        (t
+         (setq my/viewing-background (not exwm-background/viewing-background))
+         (set-frame-parameter (selected-frame) 'alpha `(,(if exwm-background/viewing-background 0 exwm-background/current-transparency) . 50)))))
 
 
 ;; Send a window to the back, for viewing while transparent
@@ -221,7 +236,10 @@ Needs to be fixed"
   (if (= exwm-background/exwm-background-window -1)
       (message "There is no background window...")
     (let (event)
-      (while (not (= 113 (setq event (read-key "Sequence? "))))
+      (while (progn
+               (setq event (read-key "Sequence? "))
+               (or (not (eq (type-of event) 'integer))
+                   (not (= 113 event))))
         (exwm-background/exwm-input--fake-key-to-window exwm-background/exwm-background-window event)))))
 
 

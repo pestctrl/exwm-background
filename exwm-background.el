@@ -238,7 +238,7 @@ Needs to be fixed"
     (let (event)
       (while (progn
                (setq event (read-key "Sequence? "))
-               (or (not (eq (type-of event) 'integer))
+               (or (not (integerp event))
                    (not (= 113 event))))
         (exwm-background/exwm-input--fake-key-to-window exwm-background/exwm-background-window event)))))
 

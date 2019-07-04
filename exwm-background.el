@@ -36,6 +36,8 @@
 
 (require 'xelb)
 (require 'exwm)
+(require 'dash)
+(require 'hydra)
 
 ;; transparency toggle
 (defvar exwm-background/current-transparency 85)
@@ -63,20 +65,21 @@
 
 (defvar exwm-background/viewing-background nil)
 
-(defun my/toggle-viewing-background ()
+(defun exwm-background/toggle-viewing-background ()
   "Allow for easy switching between 0 transparency and 
      current transparency, in order to take peeks at the 
      X window in the background."
   (interactive)
   (cond (exwm-background/viewing-background
          (if (consp exwm-background/viewing-background)
-             (my/set-window-transparency )
-           (set-frame-parameter (selected-frame) 'alpha `(,my/current-transparency . 50))))
+             (exwm-background/set-window-transparency 100)
+           (set-frame-parameter (selected-frame) 'alpha `(,exwm-background/current-transparency . 50)))
+         (setq exwm-background/viewing-background nil))
         (exwm--id
          )
         (t
-         (setq my/viewing-background (not exwm-background/viewing-background))
-         (set-frame-parameter (selected-frame) 'alpha `(,(if exwm-background/viewing-background 0 exwm-background/current-transparency) . 50)))))
+         (setq exwm-background/viewing-background (not exwm-background/viewing-background))
+         (set-frame-parameter (selected-frame) 'alpha `(0 . 50)))))
 
 
 ;; Send a window to the back, for viewing while transparent
@@ -128,7 +131,7 @@
   (when exwm--id
     (setq exwm-background/exwm-background-window exwm--id)
     (exwm-background/xelb-background-window exwm--id))
-  (ibuffer))
+  (switch-to-buffer (other-buffer (current-buffer) 1)))
 
 ;; Weird behavior when un-fullscreening a
 ;; youtube window that has been backgrounded
@@ -242,5 +245,185 @@ Needs to be fixed"
                    (not (= 113 event))))
         (exwm-background/exwm-input--fake-key-to-window exwm-background/exwm-background-window event)))))
 
+
+(defconst exwm-background/unsigned-int-max 4294967295)
+
+(defun exwm-background/int-to-char-array (int)
+  (cl-labels ((thunk (int depth)
+                     (if (= depth 4)
+                         nil
+                       (cons (% int 256)
+                             (thunk (/ int 256)
+                                    (1+ depth))))))
+    (thunk int 0)))
+
+(defun exwm-background/char-array-to-int (arr)
+  (let ((iter (1- (length arr)))
+        (sum 0))
+    (while (>= iter 0)
+      (setf sum (+ (* 256 sum) (aref arr iter)))
+      (decf iter))
+    sum))
+
+(defun exwm-background/map-to-unsigned-int (percent)
+  (round (* exwm-background/unsigned-int-max percent)))
+
+(defun exwm-background/map-to-percent (val)
+  (/ val (float exwm-background/unsigned-int-max)))
+
+(defun exwm-background/set-transparency (window-id value)
+  "`value` should be an float between 0 and and 1,"
+  (->> value
+       (exwm-background/map-to-unsigned-int)
+       (exwm-background/int-to-char-array)
+       (make-instance xcb:ChangeProperty
+                      :mode xcb:PropMode:Replace :window window-id
+                      :property xcb:Atom:_NET_WM_WINDOW_OPACITY :type xcb:Atom:CARDINAL
+                      :format 32 :data-len 1 :data)
+       (xcb:+request exwm--connection))
+  (xcb:flush exwm--connection))
+
+(defun exwm-background/get-transparency (window-id)
+  (let ((reply (->> window-id
+                    (make-instance xcb:GetProperty :delete 0
+                                   :property xcb:Atom:_NET_WM_WINDOW_OPACITY :type xcb:Atom:CARDINAL
+                                   :long-offset 0 :long-length 1
+                                   :window)
+                    (xcb:+request-unchecked+reply exwm--connection))))
+    (let ((char-arr (slot-value reply 'value)))
+      (if (zerop (length char-arr))
+          1.0
+        (-> char-arr
+            (exwm-background/char-array-to-int)
+            (exwm-background/map-to-percent))))))
+
+(defun exwm-background/increase-window-transparency ()
+  (interactive)
+  (when-let (id (exwm--buffer->id (current-buffer)))
+    (let* ((curr-trans (exwm-background/get-transparency id))
+           (new-trans (+ curr-trans 0.1)))
+      (exwm-background/set-transparency
+       id (if (< 1 new-trans) 1 new-trans)))))
+
+(defun exwm-background/decrease-window-transparency ()
+  (interactive)
+  (when-let (id (exwm--buffer->id (current-buffer)))
+    (let* ((curr-trans (exwm-background/get-transparency id))
+           (new-trans (- curr-trans 0.1)))
+      (exwm-background/set-transparency
+       id (if (< new-trans 0) 0 new-trans)))))
+
+(defun exwm-background/reset-window-transparency ()
+  (interactive)
+  (when-let (id (exwm--buffer->id (current-buffer)))
+    (exwm-background/set-transparency id 1.0)))
+
+(defhydra exwm-background/window-transparency-hydra ()
+  "Manage window splits"
+  ("j" exwm-background/decrease-window-transparency)
+  ("k" exwm-background/increase-window-transparency)
+  ("r" exwm-background/reset-window-transparency)
+  ("q" nil))
+
+(eval-and-compile
+  (defconst xcb:ewmh:-atoms
+    '( ;; Root Window Properties (and Related Messages)
+      _NET_SUPPORTED
+      _NET_CLIENT_LIST
+      _NET_CLIENT_LIST_STACKING
+      _NET_NUMBER_OF_DESKTOPS
+      _NET_DESKTOP_GEOMETRY
+      _NET_DESKTOP_VIEWPORT
+      _NET_CURRENT_DESKTOP
+      _NET_DESKTOP_NAMES
+      _NET_ACTIVE_WINDOW
+      _NET_WORKAREA
+      _NET_SUPPORTING_WM_CHECK
+      _NET_VIRTUAL_ROOTS
+      _NET_DESKTOP_LAYOUT
+      _NET_SHOWING_DESKTOP
+      ;; Other Root Window Messages
+      _NET_CLOSE_WINDOW
+      _NET_MOVERESIZE_WINDOW
+      _NET_WM_MOVERESIZE
+      _NET_RESTACK_WINDOW
+      _NET_REQUEST_FRAME_EXTENTS
+      ;; Application Window Properties
+      _NET_WM_NAME
+      _NET_WM_VISIBLE_NAME
+      _NET_WM_ICON_NAME
+      _NET_WM_VISIBLE_ICON_NAME
+      _NET_WM_DESKTOP
+      _NET_WM_WINDOW_TYPE
+      _NET_WM_STATE
+      _NET_WM_ALLOWED_ACTIONS
+      _NET_WM_STRUT
+      _NET_WM_STRUT_PARTIAL
+      _NET_WM_ICON_GEOMETRY
+      _NET_WM_ICON
+      _NET_WM_PID
+      _NET_WM_HANDLED_ICONS
+      _NET_WM_USER_TIME
+      _NET_WM_USER_TIME_WINDOW
+      _NET_FRAME_EXTENTS
+      _NET_WM_OPAQUE_REGION
+      _NET_WM_BYPASS_COMPOSITOR
+      ;; Window Manager Protocols
+      _NET_WM_PING
+      _NET_WM_SYNC_REQUEST
+      _NET_WM_SYNC_REQUEST_COUNTER
+      _NET_WM_FULLSCREEN_MONITORS
+      ;; Other Properties
+      _NET_WM_FULL_PLACEMENT
+      _NET_WM_CM_S0  ;_NET_WM_CM_Sn (n = 1, 2, ...) are left out here.
+      ;; _NET_WM_WINDOW_TYPE hint
+      _NET_WM_WINDOW_TYPE_DESKTOP
+      _NET_WM_WINDOW_TYPE_DOCK
+      _NET_WM_WINDOW_TYPE_TOOLBAR
+      _NET_WM_WINDOW_TYPE_MENU
+      _NET_WM_WINDOW_TYPE_UTILITY
+      _NET_WM_WINDOW_TYPE_SPLASH
+      _NET_WM_WINDOW_TYPE_DIALOG
+      _NET_WM_WINDOW_TYPE_DROPDOWN_MENU
+      _NET_WM_WINDOW_TYPE_POPUP_MENU
+      _NET_WM_WINDOW_TYPE_TOOLTIP
+      _NET_WM_WINDOW_TYPE_NOTIFICATION
+      _NET_WM_WINDOW_TYPE_COMBO
+      _NET_WM_WINDOW_TYPE_DND
+      _NET_WM_WINDOW_TYPE_NORMAL
+      ;; _NET_WM_STATE hint
+      _NET_WM_STATE_MODAL
+      _NET_WM_STATE_STICKY
+      _NET_WM_STATE_MAXIMIZED_VERT
+      _NET_WM_STATE_MAXIMIZED_HORZ
+      _NET_WM_STATE_SHADED
+      _NET_WM_STATE_SKIP_TASKBAR
+      _NET_WM_STATE_SKIP_PAGER
+      _NET_WM_STATE_HIDDEN
+      _NET_WM_STATE_FULLSCREEN
+      _NET_WM_STATE_ABOVE
+      _NET_WM_STATE_BELOW
+      _NET_WM_STATE_DEMANDS_ATTENTION
+      _NET_WM_STATE_FOCUSED
+      ;; _NET_WM_ACTION hint
+      _NET_WM_ACTION_MOVE
+      _NET_WM_ACTION_RESIZE
+      _NET_WM_ACTION_MINIMIZE
+      _NET_WM_ACTION_SHADE
+      _NET_WM_ACTION_STICK
+      _NET_WM_ACTION_MAXIMIZE_HORZ
+      _NET_WM_ACTION_MAXIMIZE_VERT
+      _NET_WM_ACTION_FULLSCREEN
+      _NET_WM_ACTION_CHANGE_DESKTOP
+      _NET_WM_ACTION_CLOSE
+      _NET_WM_ACTION_ABOVE
+      _NET_WM_ACTION_BELOW
+      _NET_WM_WINDOW_OPACITY)
+    "EWMH atoms.")
+
+  (dolist (atom xcb:ewmh:-atoms)
+    (eval `(defvar ,(intern (concat "xcb:Atom:" (symbol-name atom))) nil))))
+
+(xcb:ewmh:init exwm--connection t)
 
 (provide 'exwm-background)

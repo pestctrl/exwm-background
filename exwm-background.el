@@ -424,6 +424,4 @@ Needs to be fixed"
   (dolist (atom xcb:ewmh:-atoms)
     (eval `(defvar ,(intern (concat "xcb:Atom:" (symbol-name atom))) nil))))
 
-(xcb:ewmh:init exwm--connection t)
-
 (provide 'exwm-background)

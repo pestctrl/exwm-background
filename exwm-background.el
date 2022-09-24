@@ -34,7 +34,7 @@
 
 ;;; Code:
 
-(require 'cl)
+(require 'cl-lib)
 (require 'subr-x)
 (require 'xelb)
 (require 'exwm)
@@ -264,7 +264,7 @@ Needs to be fixed"
         (sum 0))
     (while (>= iter 0)
       (setf sum (+ (* 256 sum) (aref arr iter)))
-      (decf iter))
+      (cl-decf iter))
     sum))
 
 (defun exwm-background/map-to-unsigned-int (percent)

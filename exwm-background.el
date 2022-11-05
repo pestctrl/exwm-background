@@ -333,4 +333,39 @@ Needs to be fixed"
 
 (defvar xcb:Atom:_NET_WM_WINDOW_OPACITY nil)
 
+(add-to-list 'hydra-props-alist
+             '(exwm-background/window-transparency-hydra :verbosity 0))
+
+;; This is so that I can send fullscreen windows to the back
+(cl-defun my/exwm-layout-set-fullscreen (&optional id)
+  "Make window ID fullscreen."
+  (interactive)
+  (exwm--log "id=#x%x" (or id 0))
+  (unless (and (or id (derived-mode-p 'exwm-mode))
+               (not (exwm-layout--fullscreen-p)))
+    (cl-return-from exwm-layout-set-fullscreen))
+  (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
+    ;; Expand the X window to fill the whole screen.
+    (with-slots (x y width height) (exwm-workspace--get-geometry exwm--frame)
+      (exwm--set-geometry exwm--id x y width height))
+    ;; Raise the X window.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window exwm--id
+                       :value-mask (logior xcb:ConfigWindow:BorderWidth
+                                           xcb:ConfigWindow:StackMode)
+                       :border-width 0
+                       :stack-mode xcb:StackMode:Above))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_WM_STATE
+                       :window exwm--id
+                       :data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
+    (xcb:flush exwm--connection)
+    ;;(set-window-dedicated-p (get-buffer-window) t)
+    (cl-pushnew xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+    (exwm-input--release-keyboard exwm--id)))
+
+
+(advice-add #'exwm-layout-set-fullscreen :override #'my/exwm-layout-set-fullscreen)
+
 (provide 'exwm-background)

@@ -44,7 +44,15 @@
 ;; transparency toggle
 (defvar exwm-background/current-transparency 85)
 (defvar exwm-background/unfocused-opacity 50)
-(setq window-system-default-frame-alist `((x . ((alpha . (,exwm-background/current-transparency . ,exwm-background/unfocused-opacity)) ))))
+;; (setq window-system-default-frame-alist `((x . ((alpha . (,exwm-background/current-transparency . ,exwm-background/unfocused-opacity)) ))))
+
+(defun exwm-background/init-transparency ()
+  (setq window-system-default-frame-alist `((x . ((alpha . (,exwm-background/current-transparency . ,exwm-background/unfocused-opacity))))))
+  (dolist (f (frame-list))
+    (set-frame-parameter f 'alpha `(,exwm-background/current-transparency . 50))))
+
+(add-hook 'exwm-init-hook
+          'exwm-background/init-transparency)
 
 (defun exwm-background/increase-transparency ()
   (interactive)
